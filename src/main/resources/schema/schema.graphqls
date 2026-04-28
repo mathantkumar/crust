@@ -1,0 +1,14 @@
+type Mutation {
+    publishMenu(versionId: ID!): Boolean
+    revertToCleanVersion(versionId: ID!): Boolean
+}
+
+type MenuRisk {
+    id: ID!
+    description: String!
+    severityScore: Int!
+}
+
+type Query {
+    getMenuRisks(versionId: ID!): [MenuRisk!]!
+}
