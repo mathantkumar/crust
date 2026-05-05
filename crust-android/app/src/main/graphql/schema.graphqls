@@ -1,19 +1,11 @@
+type Query {
+    getActiveMenu: MenuVersionData
+    getMenuRisks(versionId: ID!): [MenuRisk!]!
+}
+
 type Mutation {
     publishMenu(versionId: ID!): Boolean
     revertToCleanVersion(versionId: ID!): Boolean
-}
-
-type MenuRisk {
-    id: ID!
-    category: String!
-    impactScore: Int!
-    plainEnglishSummary: String!
-    suggestedAction: String!
-}
-
-type Query {
-    getMenuRisks(versionId: ID!): [MenuRisk!]!
-    getActiveMenu: MenuVersionData
 }
 
 type MenuVersionData {
@@ -46,4 +38,12 @@ type ModifierData {
     id: ID!
     name: String!
     priceAdjustment: Float
+}
+
+type MenuRisk {
+    id: ID!
+    category: String!
+    impactScore: Int!
+    plainEnglishSummary: String!
+    suggestedAction: String!
 }

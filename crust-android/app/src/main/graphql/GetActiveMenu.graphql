@@ -1,0 +1,25 @@
+query GetActiveMenu {
+    getActiveMenu {
+        id
+        status
+        createdAt
+        categories {
+            id
+            name
+            menuItems {
+                id
+                name
+                basePrice
+                modifierGroups {
+                    id
+                    name
+                    modifiers {
+                        id
+                        name
+                        priceAdjustment
+                    }
+                }
+            }
+        }
+    }
+}

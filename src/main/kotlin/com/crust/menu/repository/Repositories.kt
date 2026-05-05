@@ -5,7 +5,17 @@ import com.crust.menu.domain.OutboxEvent
 import org.springframework.data.jpa.repository.JpaRepository
 import java.util.UUID
 
-interface MenuVersionRepository : JpaRepository<MenuVersion, UUID>
+interface MenuVersionRepository : JpaRepository<MenuVersion, UUID> {
+    @org.springframework.data.jpa.repository.EntityGraph(
+        attributePaths = [
+            "categories",
+            "categories.menuItems",
+            "categories.menuItems.modifierGroups",
+            "categories.menuItems.modifierGroups.modifiers"
+        ]
+    )
+    fun findFirstByStatusOrderByCreatedAtDesc(status: String): java.util.Optional<MenuVersion>
+}
 
 interface OutboxEventRepository : JpaRepository<OutboxEvent, UUID> {
     fun findByStatus(status: String): List<OutboxEvent>
