@@ -14,8 +14,10 @@ class MenuGraphQueries(
         return auditResultRepository.findByMenuVersionId(versionId).map {
             mapOf(
                 "id" to it.id.toString(),
-                "description" to it.riskDescription,
-                "severityScore" to it.severityScore
+                "category" to (it.category ?: "PRICING_STRATEGY"),
+                "impactScore" to (it.impactScore ?: it.severityScore),
+                "plainEnglishSummary" to (it.plainEnglishSummary ?: it.riskDescription),
+                "suggestedAction" to (it.suggestedAction ?: "Review this item manually.")
             )
         }
     }

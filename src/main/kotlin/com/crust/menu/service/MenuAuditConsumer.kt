@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import dev.langchain4j.model.chat.ChatLanguageModel
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.annotation.RetryableTopic
-import org.springframework.retry.annotation.Backoff
 import org.springframework.stereotype.Service
 
 @Service
@@ -25,10 +24,21 @@ class MenuAuditConsumer(
         if (versionId.isBlank()) return
 
         val prompt = """
-            You are a Restaurant Revenue Specialist. Analyze this menu for potential revenue leakage or pricing anomalies (e.g., items priced under ${'$'}1, alcoholic drinks without tax categories, or modifiers that are more expensive than the main dish). 
-            Return a JSON list of objects strictly following this format, where each object has a 'riskDescription' string and a 'severityScore' integer (1-10):
-            [{"riskDescription": "...", "severityScore": 5}]
-            
+            You are a Restaurant Revenue Specialist and financial auditor. Analyze this published menu JSON for revenue risks.
+
+            Categorize each risk as exactly one of: REVENUE_LEAKAGE, TAX_COMPLIANCE, or PRICING_STRATEGY.
+
+            Return ONLY a raw JSON array with no markdown, no code fences. Each element must have exactly these fields:
+            - "category": one of REVENUE_LEAKAGE, TAX_COMPLIANCE, PRICING_STRATEGY
+            - "impact_score": integer 1-10 based on estimated dollar loss potential (10 = highest loss)
+            - "plain_english_summary": one sentence a restaurant owner would immediately understand, e.g. "You are selling Ribeye Steak for less than the cost of a side salad."
+            - "suggested_action": one concrete corrective step, e.g. "Update price to at least ${'$'}28.00 to maintain a 30% margin."
+
+            Flag these patterns: items priced under ${'$'}1, alcoholic drinks missing a tax category, modifiers priced higher than their parent dish, any item with a zero or null price.
+
+            Example:
+            [{"category":"REVENUE_LEAKAGE","impact_score":8,"plain_english_summary":"House Burger is priced at ${'$'}0.99, far below cost.","suggested_action":"Raise price to at least ${'$'}14.00 to cover food cost and maintain margin."}]
+
             Menu Data:
             $payload
         """.trimIndent()
@@ -40,15 +50,22 @@ class MenuAuditConsumer(
             val risksNode = objectMapper.readTree(replyText)
             if (risksNode.isArray) {
                 for (riskNode in risksNode) {
-                    val description = riskNode.path("riskDescription").asText()
-                    val score = riskNode.path("severityScore").asInt()
-                    
-                    val result = MenuAuditResult(
-                        menuVersionId = versionId,
-                        riskDescription = description,
-                        severityScore = score
+                    val category = riskNode.path("category").asText("PRICING_STRATEGY")
+                    val impactScore = riskNode.path("impact_score").asInt(1)
+                    val summary = riskNode.path("plain_english_summary").asText()
+                    val action = riskNode.path("suggested_action").asText()
+
+                    menuAuditResultRepository.save(
+                        MenuAuditResult(
+                            menuVersionId = versionId,
+                            riskDescription = summary,
+                            severityScore = impactScore,
+                            category = category,
+                            impactScore = impactScore,
+                            plainEnglishSummary = summary,
+                            suggestedAction = action
+                        )
                     )
-                    menuAuditResultRepository.save(result)
                 }
             }
         } catch (e: Exception) {

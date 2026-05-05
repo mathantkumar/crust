@@ -5,8 +5,10 @@ type Mutation {
 
 type MenuRisk {
     id: ID!
-    description: String!
-    severityScore: Int!
+    category: String!
+    impactScore: Int!
+    plainEnglishSummary: String!
+    suggestedAction: String!
 }
 
 type Query {

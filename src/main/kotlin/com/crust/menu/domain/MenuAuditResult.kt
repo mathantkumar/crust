@@ -19,6 +19,18 @@ class MenuAuditResult(
     @Column(name = "severity_score", nullable = false)
     val severityScore: Int,
 
+    @Column(name = "category")
+    val category: String? = null,
+
+    @Column(name = "impact_score")
+    val impactScore: Int? = null,
+
+    @Column(name = "plain_english_summary", columnDefinition = "TEXT")
+    val plainEnglishSummary: String? = null,
+
+    @Column(name = "suggested_action", columnDefinition = "TEXT")
+    val suggestedAction: String? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
 )
