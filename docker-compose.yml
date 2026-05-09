@@ -45,6 +45,13 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    volumes:
+      - ./ui/app:/app/app
+      - ./ui/components:/app/components
+      - ./ui/tsconfig.json:/app/tsconfig.json
+      - ./ui/postcss.config.js:/app/postcss.config.js
+      - ./ui/tailwind.config.js:/app/tailwind.config.js
+    command: ["npm", "run", "dev"]
 
   mcp-server:
     build: ./mcp

@@ -180,7 +180,9 @@ export default function App() {
   const client = useMemo(() => makeClient(), []);
   return (
     <ApolloProvider client={client}>
-      <Dashboard />
+      <main className="container mx-auto p-8">
+        <Dashboard />
+      </main>
     </ApolloProvider>
   );
 }
