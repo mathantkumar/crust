@@ -42,3 +42,8 @@ out/
 ### Node ###
 node_modules/
 **/node_modules/
+
+### Next.js ###
+ui/.next/
+.next/
+ui/out/
