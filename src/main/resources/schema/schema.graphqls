@@ -1,20 +1,4 @@
-type Mutation {
-    publishMenu(versionId: ID!): Boolean
-    revertToCleanVersion(versionId: ID!): Boolean
-}
-
-type MenuRisk {
-    id: ID!
-    category: String!
-    impactScore: Int!
-    plainEnglishSummary: String!
-    suggestedAction: String!
-}
-
-type Query {
-    getMenuRisks(versionId: ID!): [MenuRisk!]!
-    getActiveMenu: MenuVersionData
-}
+# ─── Menu Types ───────────────────────────────────────────────────────────────
 
 type MenuVersionData {
     id: ID!
@@ -33,6 +17,8 @@ type MenuItemData {
     id: ID!
     name: String!
     basePrice: Float
+    available: Boolean!
+    quantityRemaining: Int
     modifierGroups: [ModifierGroupData!]!
 }
 
@@ -46,4 +32,161 @@ type ModifierData {
     id: ID!
     name: String!
     priceAdjustment: Float
+}
+
+type MenuRisk {
+    id: ID!
+    category: String!
+    impactScore: Int!
+    plainEnglishSummary: String!
+    suggestedAction: String!
+}
+
+# ─── Order Types ──────────────────────────────────────────────────────────────
+
+type OrderData {
+    id: ID!
+    orderNumber: Int
+    channel: String!
+    status: String!
+    tableNumber: String
+    serverName: String
+    guestCount: Int
+    subtotal: Float!
+    tax: Float!
+    tip: Float!
+    total: Float!
+    notes: String
+    createdAt: String!
+    updatedAt: String!
+    items: [OrderItemData!]!
+}
+
+type OrderItemData {
+    id: ID!
+    menuItemId: ID!
+    menuItemName: String!
+    quantity: Int!
+    unitPrice: Float!
+    lineTotal: Float!
+    modifierSelections: String
+    specialInstructions: String
+    status: String!
+}
+
+input CreateOrderInput {
+    channel: String!
+    tableNumber: String
+    serverName: String
+    guestCount: Int
+    idempotencyKey: String
+    notes: String
+    items: [CreateOrderItemInput!]!
+}
+
+input CreateOrderItemInput {
+    menuItemId: ID!
+    quantity: Int!
+    modifierSelections: String
+    specialInstructions: String
+}
+
+# ─── Kitchen Display Types ────────────────────────────────────────────────────
+
+type KitchenStationData {
+    id: ID!
+    name: String!
+    displayOrder: Int!
+    isActive: Boolean!
+}
+
+type KitchenTicketData {
+    id: ID!
+    orderId: ID!
+    orderNumber: Int
+    stationId: ID!
+    stationName: String
+    status: String!
+    items: String
+    createdAt: String!
+    acknowledgedAt: String
+    completedAt: String
+    elapsedSeconds: Int!
+}
+
+# ─── Payment Types ────────────────────────────────────────────────────────────
+
+type PaymentData {
+    id: ID!
+    orderId: ID!
+    amount: Float!
+    tipAmount: Float!
+    totalCharged: Float!
+    status: String!
+    paymentMethod: String
+    transactionRef: String
+    failureReason: String
+    createdAt: String!
+}
+
+input InitiatePaymentInput {
+    orderId: ID!
+    amount: Float!
+    tip: Float!
+    method: String!
+}
+
+# ─── Reporting Types ──────────────────────────────────────────────────────────
+
+scalar JSON
+
+# ─── Queries ──────────────────────────────────────────────────────────────────
+
+type Query {
+    # Menu
+    getActiveMenu: MenuVersionData
+    getMenuRisks(versionId: ID!): [MenuRisk!]!
+
+    # Orders
+    getOrder(id: ID!): OrderData
+    getActiveOrders: [OrderData!]!
+    getOrdersByStatus(status: String!): [OrderData!]!
+
+    # Kitchen
+    getKitchenStations: [KitchenStationData!]!
+    getKitchenTickets(stationId: ID): [KitchenTicketData!]!
+
+    # Payments
+    getPaymentsForOrder(orderId: ID!): [PaymentData!]!
+
+    # Reporting
+    salesSummary(dateFrom: String!, dateTo: String!): JSON
+    productMix(dateFrom: String!, dateTo: String!): JSON
+    auditTrends: JSON
+}
+
+# ─── Mutations ────────────────────────────────────────────────────────────────
+
+type Mutation {
+    # Menu
+    publishMenu(versionId: ID!): Boolean
+    revertToCleanVersion(versionId: ID!): Boolean
+    eightySixItem(itemId: ID!): MenuItemData
+    unEightySixItem(itemId: ID!, quantity: Int): MenuItemData
+
+    # Orders
+    createOrder(input: CreateOrderInput!): OrderData!
+    updateOrderStatus(orderId: ID!, status: String!): OrderData!
+    cancelOrder(orderId: ID!): OrderData!
+
+    # Kitchen
+    acknowledgeTicket(ticketId: ID!): KitchenTicketData!
+    markTicketReady(ticketId: ID!): KitchenTicketData!
+    bumpTicket(ticketId: ID!): KitchenTicketData!
+
+    # Payments
+    initiatePayment(input: InitiatePaymentInput!): PaymentData!
+    authorizePayment(paymentId: ID!): PaymentData!
+    capturePayment(paymentId: ID!): PaymentData!
+    refundPayment(paymentId: ID!, reason: String): PaymentData!
 }

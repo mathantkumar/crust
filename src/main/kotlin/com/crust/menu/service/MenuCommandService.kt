@@ -4,6 +4,7 @@ import com.crust.menu.domain.OutboxEvent
 import com.crust.menu.repository.MenuVersionRepository
 import com.crust.menu.repository.OutboxEventRepository
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -14,6 +15,8 @@ class MenuCommandService(
     private val outboxEventRepository: OutboxEventRepository,
     private val objectMapper: ObjectMapper
 ) {
+    private val log = LoggerFactory.getLogger(MenuCommandService::class.java)
+
     @Transactional
     fun publishMenuVersion(versionId: UUID): Boolean {
         val version = menuVersionRepository.findById(versionId).orElseThrow {
@@ -38,6 +41,7 @@ class MenuCommandService(
         )
         
         outboxEventRepository.save(event)
+        log.info("Published menu version $versionId and queued outbox event ${event.id}")
         return true
     }
 
@@ -49,7 +53,26 @@ class MenuCommandService(
         
         version.status = "REVERTED_DUE_TO_RISK"
         menuVersionRepository.save(version)
-        // A full production app would also find the LAST clean version and mark it PUBLISHED here!
+
+        // Atomically promote the previous PUBLISHED version so getActiveMenu never returns null.
+        // Look for the most recent version that was PUBLISHED before this one.
+        val previousVersion = menuVersionRepository
+            .findFirstByStatusAndIdNotOrderByCreatedAtDesc("PUBLISHED", versionId)
+            .orElseGet {
+                // If no other PUBLISHED version exists, look for most recent DRAFT
+                menuVersionRepository
+                    .findFirstByStatusAndIdNotOrderByCreatedAtDesc("DRAFT", versionId)
+                    .orElse(null)
+            }
+
+        if (previousVersion != null) {
+            previousVersion.status = "PUBLISHED"
+            menuVersionRepository.save(previousVersion)
+            log.info("Reverted version $versionId → promoted version ${previousVersion.id} to PUBLISHED")
+        } else {
+            log.warn("Reverted version $versionId but no previous version found to promote — getActiveMenu will return null!")
+        }
+
         return true
     }
 }

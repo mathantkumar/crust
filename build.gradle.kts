@@ -29,6 +29,7 @@ dependencies {
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	runtimeOnly("org.postgresql:postgresql")
 	implementation("com.netflix.graphql.dgs:graphql-dgs-spring-graphql-starter:9.0.4")
+	implementation("com.graphql-java:graphql-java-extended-scalars:21.0")
 	implementation("org.springframework.kafka:spring-kafka")
 	implementation("dev.langchain4j:langchain4j-spring-boot-starter:0.35.0")
 	implementation("dev.langchain4j:langchain4j-google-ai-gemini:0.35.0")

@@ -60,6 +60,12 @@ class MenuItem(
     @Column(name = "base_price")
     var basePrice: BigDecimal? = null,
 
+    @Column(name = "available")
+    var available: Boolean = true,
+
+    @Column(name = "quantity_remaining")
+    var quantityRemaining: Int? = null,
+
     @Column(name = "correlation_id")
     var correlationId: String? = null,
 
