@@ -37,16 +37,88 @@ interface OrderRepository : JpaRepository<RestaurantOrder, UUID> {
     fun findByStatus(status: String): List<RestaurantOrder>
     fun findByChannel(channel: String): List<RestaurantOrder>
     fun findByIdempotencyKey(key: String): Optional<RestaurantOrder>
+    fun findByRestaurantId(restaurantId: UUID): List<RestaurantOrder>
+    fun findByLocationId(locationId: UUID): List<RestaurantOrder>
 
     @Query("SELECT o FROM RestaurantOrder o WHERE o.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY o.createdAt DESC")
     fun findActiveOrders(): List<RestaurantOrder>
 
     @Query("SELECT o FROM RestaurantOrder o WHERE o.createdAt >= :since ORDER BY o.createdAt DESC")
     fun findOrdersSince(since: LocalDateTime): List<RestaurantOrder>
+
+    @Query("SELECT o FROM RestaurantOrder o WHERE o.status = 'COMPLETED' AND o.aggregated = false ORDER BY o.createdAt ASC")
+    fun findCompletedUnaggregated(): List<RestaurantOrder>
 }
 
 interface OrderItemRepository : JpaRepository<OrderItem, UUID> {
     fun findByOrderId(orderId: UUID): List<OrderItem>
+}
+
+interface OrderItemModifierRepository : JpaRepository<OrderItemModifier, UUID> {
+    fun findByOrderItemId(orderItemId: UUID): List<OrderItemModifier>
+}
+
+// ─── Analytics Aggregates ────────────────────────────────────────────────────
+
+interface ItemSalesHourlyRepository : JpaRepository<ItemSalesHourly, UUID> {
+    @Query("""
+        SELECT s FROM ItemSalesHourly s
+        WHERE s.restaurantId = :restaurantId
+          AND s.locationId = :locationId
+          AND s.menuItemId = :menuItemId
+          AND s.salesDate = :salesDate
+          AND s.hourOfDay = :hourOfDay
+    """)
+    fun findByCompositeKey(
+        restaurantId: UUID?,
+        locationId: UUID?,
+        menuItemId: UUID,
+        salesDate: java.time.LocalDate,
+        hourOfDay: Int
+    ): Optional<ItemSalesHourly>
+
+    fun findBySalesDateBetween(from: java.time.LocalDate, to: java.time.LocalDate): List<ItemSalesHourly>
+    fun findByMenuItemId(menuItemId: UUID): List<ItemSalesHourly>
+    fun findByRestaurantId(restaurantId: UUID): List<ItemSalesHourly>
+    fun findByCategoryName(categoryName: String): List<ItemSalesHourly>
+
+    /** Training data: historical hourly sales for a specific item on a specific day-of-week */
+    @Query("""
+        SELECT s FROM ItemSalesHourly s
+        WHERE s.menuItemId = :menuItemId
+          AND s.dayOfWeek = :dayOfWeek
+          AND s.salesDate >= :since
+        ORDER BY s.salesDate DESC, s.hourOfDay ASC
+    """)
+    fun findTrainingData(
+        menuItemId: UUID,
+        dayOfWeek: Int,
+        since: java.time.LocalDate
+    ): List<ItemSalesHourly>
+
+    /** All distinct menu item IDs that have sales history */
+    @Query("SELECT DISTINCT s.menuItemId FROM ItemSalesHourly s")
+    fun findDistinctMenuItemIds(): List<UUID>
+}
+
+// ─── Demand Forecasting ──────────────────────────────────────────────────────
+
+interface ItemDemandForecastRepository : JpaRepository<ItemDemandForecast, UUID> {
+    fun findByForecastDateAndMenuItemId(forecastDate: java.time.LocalDate, menuItemId: UUID): List<ItemDemandForecast>
+    fun findByForecastDateBetween(from: java.time.LocalDate, to: java.time.LocalDate): List<ItemDemandForecast>
+    fun findByMenuItemId(menuItemId: UUID): List<ItemDemandForecast>
+
+    @Query("""
+        SELECT f FROM ItemDemandForecast f
+        WHERE f.menuItemId = :menuItemId
+          AND f.forecastDate = :forecastDate
+          AND f.hourOfDay = :hourOfDay
+    """)
+    fun findExisting(
+        menuItemId: UUID,
+        forecastDate: java.time.LocalDate,
+        hourOfDay: Int
+    ): Optional<ItemDemandForecast>
 }
 
 // ─── Kitchen Display ─────────────────────────────────────────────────────────

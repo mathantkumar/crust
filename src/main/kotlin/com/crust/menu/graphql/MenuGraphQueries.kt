@@ -2,6 +2,7 @@ package com.crust.menu.graphql
 
 import com.crust.menu.repository.MenuAuditResultRepository
 import com.crust.menu.repository.MenuVersionRepository
+import com.crust.menu.repository.ItemSalesHourlyRepository
 import com.crust.menu.service.*
 import com.netflix.graphql.dgs.DgsComponent
 import com.netflix.graphql.dgs.DgsQuery
@@ -17,7 +18,9 @@ class MenuGraphQueries(
     private val orderService: OrderService,
     private val kitchenDisplayService: KitchenDisplayService,
     private val paymentService: PaymentService,
-    private val reportingService: ReportingService
+    private val reportingService: ReportingService,
+    private val itemSalesHourlyRepository: ItemSalesHourlyRepository,
+    private val demandForecastService: DemandForecastService
 ) {
     // ─── Menu Queries ────────────────────────────────────────────────────────
 
@@ -147,11 +150,70 @@ class MenuGraphQueries(
         return reportingService.getAuditTrends()
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
+    @DgsQuery
+    fun modifierRevenue(@InputArgument dateFrom: String, @InputArgument dateTo: String): List<Map<String, Any>> {
+        return reportingService.getModifierRevenue(LocalDate.parse(dateFrom), LocalDate.parse(dateTo))
+    }
+
+    @DgsQuery
+    fun itemSalesHourly(@InputArgument dateFrom: String, @InputArgument dateTo: String): List<Map<String, Any>> {
+        val from = LocalDate.parse(dateFrom)
+        val to = LocalDate.parse(dateTo)
+        return itemSalesHourlyRepository.findBySalesDateBetween(from, to).map { s ->
+            mapOf(
+                "id" to s.id.toString(),
+                "restaurantId" to (s.restaurantId?.toString() ?: ""),
+                "locationId" to (s.locationId?.toString() ?: ""),
+                "menuItemId" to s.menuItemId.toString(),
+                "itemName" to s.itemName,
+                "categoryName" to (s.categoryName ?: ""),
+                "salesDate" to s.salesDate.toString(),
+                "hourOfDay" to s.hourOfDay,
+                "dayOfWeek" to s.dayOfWeek,
+                "quantitySold" to s.quantitySold,
+                "grossRevenue" to s.grossRevenue,
+                "modifierRevenue" to s.modifierRevenue,
+                "orderCount" to s.orderCount,
+                "avgUnitPrice" to s.avgUnitPrice
+            )
+        }
+    }
+
+    // ─── Forecast Queries ─────────────────────────────────────────────────────
+
+    @DgsQuery
+    fun demandForecast(@InputArgument dateFrom: String, @InputArgument dateTo: String): List<Map<String, Any>> {
+        return demandForecastService.getForecast(LocalDate.parse(dateFrom), LocalDate.parse(dateTo))
+            .map { forecastToMap(it) }
+    }
+
+    @DgsQuery
+    fun itemForecast(@InputArgument menuItemId: String): List<Map<String, Any>> {
+        return demandForecastService.getForecastForItem(UUID.fromString(menuItemId))
+            .map { forecastToMap(it) }
+    }
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun forecastToMap(f: com.crust.menu.domain.ItemDemandForecast): Map<String, Any> = mapOf(
+        "id" to f.id.toString(),
+        "menuItemId" to f.menuItemId.toString(),
+        "itemName" to f.itemName,
+        "forecastDate" to f.forecastDate.toString(),
+        "hourOfDay" to f.hourOfDay,
+        "dayOfWeek" to f.dayOfWeek,
+        "predictedQuantity" to f.predictedQuantity,
+        "predictedRevenue" to f.predictedRevenue,
+        "confidence" to f.confidence,
+        "modelVersion" to f.modelVersion,
+        "generatedAt" to f.generatedAt.toString()
+    )
 
     private fun orderToMap(o: com.crust.menu.domain.RestaurantOrder): Map<String, Any> = mapOf(
         "id" to o.id.toString(), "orderNumber" to (o.orderNumber ?: 0),
         "channel" to o.channel, "status" to o.status,
+        "restaurantId" to (o.restaurantId?.toString() ?: ""),
+        "locationId" to (o.locationId?.toString() ?: ""),
         "tableNumber" to (o.tableNumber ?: ""), "serverName" to (o.serverName ?: ""),
         "guestCount" to (o.guestCount ?: 0),
         "subtotal" to o.subtotal, "tax" to o.tax, "tip" to o.tip, "total" to o.total,
@@ -164,7 +226,20 @@ class MenuGraphQueries(
                 "unitPrice" to i.unitPrice, "lineTotal" to i.lineTotal,
                 "modifierSelections" to (i.modifierSelections ?: ""),
                 "specialInstructions" to (i.specialInstructions ?: ""),
-                "status" to i.status
+                "status" to i.status,
+                "categoryId" to (i.categoryId?.toString() ?: ""),
+                "categoryName" to (i.categoryName ?: ""),
+                "menuVersionId" to (i.menuVersionId?.toString() ?: ""),
+                "createdAt" to i.createdAt.toString(),
+                "completedAt" to (i.completedAt?.toString() ?: ""),
+                "modifiers" to i.modifiers.map { m ->
+                    mapOf(
+                        "id" to m.id.toString(),
+                        "modifierId" to (m.modifierId?.toString() ?: ""),
+                        "modifierName" to m.modifierName,
+                        "priceImpact" to m.priceImpact
+                    )
+                }
             )
         }
     )

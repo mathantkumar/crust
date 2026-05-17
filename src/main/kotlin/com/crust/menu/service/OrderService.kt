@@ -4,6 +4,7 @@ import com.crust.menu.domain.*
 import com.crust.menu.domain.enums.OrderStatus
 import com.crust.menu.repository.*
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,8 +13,16 @@ import java.math.RoundingMode
 import java.time.LocalDateTime
 import java.util.UUID
 
+data class ModifierSelectionInput(
+    val modifierId: String? = null,
+    val modifierName: String,
+    val priceImpact: Double = 0.0
+)
+
 data class CreateOrderInput(
     val channel: String,
+    val restaurantId: String? = null,
+    val locationId: String? = null,
     val tableNumber: String? = null,
     val serverName: String? = null,
     val guestCount: Int? = null,
@@ -26,6 +35,7 @@ data class CreateOrderItemInput(
     val menuItemId: String,
     val quantity: Int = 1,
     val modifierSelections: String? = null,
+    val modifiers: List<ModifierSelectionInput>? = null,
     val specialInstructions: String? = null
 )
 
@@ -56,10 +66,13 @@ class OrderService(
         val activeMenu = menuVersionRepository.findFirstByStatusOrderByCreatedAtDesc("PUBLISHED")
             .orElseThrow { IllegalStateException("No active menu found — cannot create order") }
 
-        val allItems = activeMenu.categories.flatMap { it.menuItems }
+        val allCategories = activeMenu.categories
+        val allItems = allCategories.flatMap { it.menuItems }
 
         val order = RestaurantOrder(
             channel = input.channel,
+            restaurantId = input.restaurantId?.let { UUID.fromString(it) },
+            locationId = input.locationId?.let { UUID.fromString(it) },
             tableNumber = input.tableNumber,
             serverName = input.serverName,
             guestCount = input.guestCount,
@@ -73,8 +86,19 @@ class OrderService(
             val menuItem = allItems.find { it.id.toString() == itemInput.menuItemId }
                 ?: throw IllegalArgumentException("Menu item ${itemInput.menuItemId} not found in active menu")
 
+            // Snapshot category context
+            val category = allCategories.find { cat -> cat.menuItems.any { it.id == menuItem.id } }
+
             val unitPrice = menuItem.basePrice ?: BigDecimal.ZERO
-            val lineTotal = unitPrice.multiply(BigDecimal(itemInput.quantity))
+
+            // Resolve modifiers — accept both structured input and legacy JSON
+            val resolvedModifiers = resolveModifiers(itemInput)
+            val modifierTotal = resolvedModifiers.fold(BigDecimal.ZERO) { acc, m ->
+                acc.add(BigDecimal(m.priceImpact.toString()))
+            }
+
+            val effectiveUnitPrice = unitPrice.add(modifierTotal)
+            val lineTotal = effectiveUnitPrice.multiply(BigDecimal(itemInput.quantity))
 
             val orderItem = OrderItem(
                 order = order,
@@ -84,8 +108,24 @@ class OrderService(
                 unitPrice = unitPrice,
                 lineTotal = lineTotal,
                 modifierSelections = itemInput.modifierSelections,
-                specialInstructions = itemInput.specialInstructions
+                specialInstructions = itemInput.specialInstructions,
+                categoryId = category?.id,
+                categoryName = category?.name,
+                menuVersionId = activeMenu.id
             )
+
+            // Attach structured modifier rows
+            for (mod in resolvedModifiers) {
+                val modEntity = OrderItemModifier(
+                    orderItem = orderItem,
+                    modifierId = mod.modifierId?.let { UUID.fromString(it) },
+                    modifierName = mod.modifierName,
+                    priceImpact = BigDecimal(mod.priceImpact.toString())
+                        .setScale(2, RoundingMode.HALF_UP)
+                )
+                orderItem.modifiers.add(modEntity)
+            }
+
             order.items.add(orderItem)
             subtotal = subtotal.add(lineTotal)
         }
@@ -105,6 +145,8 @@ class OrderService(
                 "orderId" to saved.id.toString(),
                 "status" to saved.status,
                 "channel" to saved.channel,
+                "restaurantId" to saved.restaurantId?.toString(),
+                "locationId" to saved.locationId?.toString(),
                 "total" to saved.total
             ))
         )
@@ -152,4 +194,36 @@ class OrderService(
 
     fun getOrdersByStatus(status: String): List<RestaurantOrder> =
         orderRepository.findByStatus(status)
+
+    // ─── Private Helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Resolves modifier selections from either the new structured input
+     * or the legacy JSON string (backward compatible).
+     */
+    private fun resolveModifiers(itemInput: CreateOrderItemInput): List<ModifierSelectionInput> {
+        // Prefer structured input if provided
+        if (!itemInput.modifiers.isNullOrEmpty()) {
+            return itemInput.modifiers
+        }
+
+        // Fall back to parsing legacy modifierSelections JSON
+        if (!itemInput.modifierSelections.isNullOrBlank()) {
+            return try {
+                objectMapper.readValue<List<Map<String, Any>>>(itemInput.modifierSelections).map { m ->
+                    ModifierSelectionInput(
+                        modifierId = m["modifierId"]?.toString() ?: m["id"]?.toString(),
+                        modifierName = m["name"]?.toString() ?: m["modifierName"]?.toString() ?: "Unknown",
+                        priceImpact = (m["priceImpact"] ?: m["priceAdjustment"] ?: m["price"] ?: 0.0)
+                            .let { (it as? Number)?.toDouble() ?: 0.0 }
+                    )
+                }
+            } catch (e: Exception) {
+                log.warn("Could not parse modifierSelections JSON, treating as empty: ${e.message}")
+                emptyList()
+            }
+        }
+
+        return emptyList()
+    }
 }

@@ -43,16 +43,27 @@ class MenuGraphMutations(
     @DgsMutation
     fun createOrder(@InputArgument input: Map<String, Any>): Map<String, Any> {
         val items = (input["items"] as List<Map<String, Any>>).map { item ->
+            val modifiers = (item["modifiers"] as? List<Map<String, Any>>)?.map { m ->
+                ModifierSelectionInput(
+                    modifierId = m["modifierId"] as? String,
+                    modifierName = m["modifierName"] as String,
+                    priceImpact = (m["priceImpact"] as? Number)?.toDouble() ?: 0.0
+                )
+            }
+
             CreateOrderItemInput(
                 menuItemId = item["menuItemId"] as String,
                 quantity = (item["quantity"] as? Number)?.toInt() ?: 1,
                 modifierSelections = item["modifierSelections"] as? String,
+                modifiers = modifiers,
                 specialInstructions = item["specialInstructions"] as? String
             )
         }
 
         val createInput = CreateOrderInput(
             channel = input["channel"] as String,
+            restaurantId = input["restaurantId"] as? String,
+            locationId = input["locationId"] as? String,
             tableNumber = input["tableNumber"] as? String,
             serverName = input["serverName"] as? String,
             guestCount = (input["guestCount"] as? Number)?.toInt(),
@@ -130,6 +141,8 @@ class MenuGraphMutations(
     private fun orderToMap(o: com.crust.menu.domain.RestaurantOrder): Map<String, Any> = mapOf(
         "id" to o.id.toString(), "orderNumber" to (o.orderNumber ?: 0),
         "channel" to o.channel, "status" to o.status,
+        "restaurantId" to (o.restaurantId?.toString() ?: ""),
+        "locationId" to (o.locationId?.toString() ?: ""),
         "tableNumber" to (o.tableNumber ?: ""), "serverName" to (o.serverName ?: ""),
         "guestCount" to (o.guestCount ?: 0),
         "subtotal" to o.subtotal, "tax" to o.tax, "tip" to o.tip, "total" to o.total,
@@ -142,7 +155,20 @@ class MenuGraphMutations(
                 "unitPrice" to i.unitPrice, "lineTotal" to i.lineTotal,
                 "modifierSelections" to (i.modifierSelections ?: ""),
                 "specialInstructions" to (i.specialInstructions ?: ""),
-                "status" to i.status
+                "status" to i.status,
+                "categoryId" to (i.categoryId?.toString() ?: ""),
+                "categoryName" to (i.categoryName ?: ""),
+                "menuVersionId" to (i.menuVersionId?.toString() ?: ""),
+                "createdAt" to i.createdAt.toString(),
+                "completedAt" to (i.completedAt?.toString() ?: ""),
+                "modifiers" to i.modifiers.map { m ->
+                    mapOf(
+                        "id" to m.id.toString(),
+                        "modifierId" to (m.modifierId?.toString() ?: ""),
+                        "modifierName" to m.modifierName,
+                        "priceImpact" to m.priceImpact
+                    )
+                }
             )
         }
     )

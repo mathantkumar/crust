@@ -1,14 +1,11 @@
 package com.crust.menu.service
 
-import com.crust.menu.repository.MenuVersionRepository
 import com.crust.menu.repository.OrderRepository
 import com.crust.menu.repository.PaymentRepository
 import com.crust.menu.repository.MenuAuditResultRepository
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 @Service
 class ReportingService(
@@ -16,7 +13,6 @@ class ReportingService(
     private val paymentRepository: PaymentRepository,
     private val auditResultRepository: MenuAuditResultRepository
 ) {
-    private val log = LoggerFactory.getLogger(ReportingService::class.java)
 
     fun getSalesSummary(dateFrom: LocalDate, dateTo: LocalDate): Map<String, Any> {
         val since = dateFrom.atStartOfDay()
@@ -62,14 +58,46 @@ class ReportingService(
             .filter { it.status == "COMPLETED" && it.createdAt.toLocalDate() <= dateTo }
 
         val allItems = orders.flatMap { it.items }
+
+        // Group by category → item for richer analytics
         return allItems.groupBy { it.menuItemName }.map { (name, items) ->
             val totalQty = items.sumOf { it.quantity }
             val totalRev = items.fold(BigDecimal.ZERO) { acc, i -> acc.add(i.lineTotal) }
+            val modifierRev = items.flatMap { it.modifiers }
+                .fold(BigDecimal.ZERO) { acc, m -> acc.add(m.priceImpact) }
+            val categoryName = items.firstOrNull()?.categoryName ?: "Uncategorized"
+
             mapOf(
                 "itemName" to name,
+                "categoryName" to categoryName,
                 "totalQuantity" to totalQty,
                 "totalRevenue" to totalRev,
+                "modifierRevenue" to modifierRev,
                 "orderCount" to items.map { it.order.id }.distinct().size
+            )
+        }.sortedByDescending { (it["totalRevenue"] as BigDecimal) }
+    }
+
+    /**
+     * Returns modifier revenue contribution across all completed orders.
+     * Useful for understanding which modifiers drive upsell revenue.
+     */
+    fun getModifierRevenue(dateFrom: LocalDate, dateTo: LocalDate): List<Map<String, Any>> {
+        val since = dateFrom.atStartOfDay()
+        val orders = orderRepository.findOrdersSince(since)
+            .filter { it.status == "COMPLETED" && it.createdAt.toLocalDate() <= dateTo }
+
+        val allModifiers = orders.flatMap { it.items }.flatMap { it.modifiers }
+
+        return allModifiers.groupBy { it.modifierName }.map { (name, mods) ->
+            val totalImpact = mods.fold(BigDecimal.ZERO) { acc, m -> acc.add(m.priceImpact) }
+            mapOf(
+                "modifierName" to name,
+                "selectionCount" to mods.size,
+                "totalRevenue" to totalImpact,
+                "averageImpact" to if (mods.isNotEmpty())
+                    totalImpact.divide(BigDecimal(mods.size), 2, java.math.RoundingMode.HALF_UP)
+                else BigDecimal.ZERO
             )
         }.sortedByDescending { (it["totalRevenue"] as BigDecimal) }
     }

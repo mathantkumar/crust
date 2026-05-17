@@ -49,6 +49,8 @@ type OrderData {
     orderNumber: Int
     channel: String!
     status: String!
+    restaurantId: ID
+    locationId: ID
     tableNumber: String
     serverName: String
     guestCount: Int
@@ -72,10 +74,25 @@ type OrderItemData {
     modifierSelections: String
     specialInstructions: String
     status: String!
+    categoryId: ID
+    categoryName: String
+    menuVersionId: ID
+    createdAt: String!
+    completedAt: String
+    modifiers: [OrderItemModifierData!]!
+}
+
+type OrderItemModifierData {
+    id: ID!
+    modifierId: ID
+    modifierName: String!
+    priceImpact: Float!
 }
 
 input CreateOrderInput {
     channel: String!
+    restaurantId: ID
+    locationId: ID
     tableNumber: String
     serverName: String
     guestCount: Int
@@ -88,7 +105,14 @@ input CreateOrderItemInput {
     menuItemId: ID!
     quantity: Int!
     modifierSelections: String
+    modifiers: [ModifierSelectionInput!]
     specialInstructions: String
+}
+
+input ModifierSelectionInput {
+    modifierId: ID
+    modifierName: String!
+    priceImpact: Float!
 }
 
 # ─── Kitchen Display Types ────────────────────────────────────────────────────
@@ -140,6 +164,37 @@ input InitiatePaymentInput {
 
 scalar JSON
 
+type ItemSalesHourlyData {
+    id: ID!
+    restaurantId: ID
+    locationId: ID
+    menuItemId: ID!
+    itemName: String!
+    categoryName: String
+    salesDate: String!
+    hourOfDay: Int!
+    dayOfWeek: Int!
+    quantitySold: Int!
+    grossRevenue: Float!
+    modifierRevenue: Float!
+    orderCount: Int!
+    avgUnitPrice: Float!
+}
+
+type ItemDemandForecastData {
+    id: ID!
+    menuItemId: ID!
+    itemName: String!
+    forecastDate: String!
+    hourOfDay: Int!
+    dayOfWeek: Int!
+    predictedQuantity: Float!
+    predictedRevenue: Float!
+    confidence: Float!
+    modelVersion: String!
+    generatedAt: String!
+}
+
 # ─── Queries ──────────────────────────────────────────────────────────────────
 
 type Query {
@@ -162,7 +217,13 @@ type Query {
     # Reporting
     salesSummary(dateFrom: String!, dateTo: String!): JSON
     productMix(dateFrom: String!, dateTo: String!): JSON
+    modifierRevenue(dateFrom: String!, dateTo: String!): JSON
+    itemSalesHourly(dateFrom: String!, dateTo: String!): [ItemSalesHourlyData!]!
     auditTrends: JSON
+
+    # Forecasting
+    demandForecast(dateFrom: String!, dateTo: String!): [ItemDemandForecastData!]!
+    itemForecast(menuItemId: ID!): [ItemDemandForecastData!]!
 }
 
 # ─── Mutations ────────────────────────────────────────────────────────────────

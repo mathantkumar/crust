@@ -42,6 +42,12 @@ class RestaurantOrder(
     @Column(name = "total", precision = 10, scale = 2)
     var total: BigDecimal = BigDecimal.ZERO,
 
+    @Column(name = "restaurant_id")
+    var restaurantId: java.util.UUID? = null,
+
+    @Column(name = "location_id")
+    var locationId: java.util.UUID? = null,
+
     @Column(name = "idempotency_key", unique = true)
     var idempotencyKey: String? = null,
 
@@ -53,6 +59,9 @@ class RestaurantOrder(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "aggregated", nullable = false)
+    var aggregated: Boolean = false,
 
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true)
     val items: MutableList<OrderItem> = mutableListOf()
@@ -93,5 +102,48 @@ class OrderItem(
     var status: String = "PENDING",
 
     @Column(name = "station_routing")
-    var stationRouting: String? = null
+    var stationRouting: String? = null,
+
+    // ── Analytics snapshot fields ────────────────────────────────────────────
+
+    @Column(name = "category_id")
+    val categoryId: UUID? = null,
+
+    @Column(name = "category_name")
+    val categoryName: String? = null,
+
+    @Column(name = "menu_version_id")
+    val menuVersionId: UUID? = null,
+
+    @Column(name = "created_at", nullable = false)
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "completed_at")
+    var completedAt: LocalDateTime? = null,
+
+    @OneToMany(mappedBy = "orderItem", cascade = [CascadeType.ALL], orphanRemoval = true)
+    val modifiers: MutableList<OrderItemModifier> = mutableListOf()
+)
+
+@Entity
+@Table(name = "order_item_modifier")
+class OrderItemModifier(
+    @Id
+    val id: UUID = UUID.randomUUID(),
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_item_id", nullable = false)
+    val orderItem: OrderItem,
+
+    @Column(name = "modifier_id")
+    val modifierId: UUID? = null,
+
+    @Column(name = "modifier_name", nullable = false)
+    val modifierName: String,
+
+    @Column(name = "price_impact", precision = 10, scale = 2, nullable = false)
+    val priceImpact: java.math.BigDecimal = java.math.BigDecimal.ZERO,
+
+    @Column(name = "created_at", nullable = false)
+    val createdAt: LocalDateTime = LocalDateTime.now()
 )
