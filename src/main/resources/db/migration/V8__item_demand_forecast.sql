@@ -4,6 +4,8 @@
 
 CREATE TABLE item_demand_forecast (
     id                UUID PRIMARY KEY,
+    restaurant_id     UUID NOT NULL,
+    location_id       UUID NOT NULL,
     menu_item_id      UUID NOT NULL,
     item_name         VARCHAR(255) NOT NULL,
     forecast_date     DATE NOT NULL,
@@ -18,7 +20,7 @@ CREATE TABLE item_demand_forecast (
 
 -- Lookup: what's the forecast for a given item on a given date/hour?
 CREATE UNIQUE INDEX idx_idf_upsert
-    ON item_demand_forecast(menu_item_id, forecast_date, hour_of_day);
+    ON item_demand_forecast(restaurant_id, location_id, menu_item_id, forecast_date, hour_of_day);
 
 CREATE INDEX idx_idf_date        ON item_demand_forecast(forecast_date);
 CREATE INDEX idx_idf_item        ON item_demand_forecast(menu_item_id);

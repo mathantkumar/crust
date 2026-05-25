@@ -1,6 +1,7 @@
 package com.crust.menu.service
 
 import com.crust.menu.domain.OutboxEvent
+import com.crust.menu.domain.exception.NoFallbackMenuException
 import com.crust.menu.repository.MenuVersionRepository
 import com.crust.menu.repository.OutboxEventRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -54,23 +55,25 @@ class MenuCommandService(
         version.status = "REVERTED_DUE_TO_RISK"
         menuVersionRepository.save(version)
 
-        // Atomically promote the previous PUBLISHED version so getActiveMenu never returns null.
-        // Look for the most recent version that was PUBLISHED before this one.
-        val previousVersion = menuVersionRepository
-            .findFirstByStatusAndIdNotOrderByCreatedAtDesc("PUBLISHED", versionId)
-            .orElseGet {
-                // If no other PUBLISHED version exists, look for most recent DRAFT
-                menuVersionRepository
-                    .findFirstByStatusAndIdNotOrderByCreatedAtDesc("DRAFT", versionId)
-                    .orElse(null)
-            }
+        val allVersions = menuVersionRepository.findAll()
+        val previousPublished = allVersions
+            .filter { it.status == "PUBLISHED" && it.createdAt.isBefore(version.createdAt) }
+            .maxByOrNull { it.createdAt }
 
-        if (previousVersion != null) {
-            previousVersion.status = "PUBLISHED"
-            menuVersionRepository.save(previousVersion)
-            log.info("Reverted version $versionId → promoted version ${previousVersion.id} to PUBLISHED")
+        if (previousPublished != null) {
+            log.info("Reverted version $versionId → prior PUBLISHED version ${previousPublished.id} remains active")
         } else {
-            log.warn("Reverted version $versionId but no previous version found to promote — getActiveMenu will return null!")
+            val mostRecentDraft = allVersions
+                .filter { it.status == "DRAFT" }
+                .maxByOrNull { it.createdAt }
+                
+            if (mostRecentDraft != null) {
+                mostRecentDraft.status = "PUBLISHED"
+                menuVersionRepository.save(mostRecentDraft)
+                log.info("Reverted version $versionId → promoted most recent DRAFT version ${mostRecentDraft.id} to PUBLISHED")
+            } else {
+                throw NoFallbackMenuException("Reverted version $versionId but no fallback menu version found")
+            }
         }
 
         return true

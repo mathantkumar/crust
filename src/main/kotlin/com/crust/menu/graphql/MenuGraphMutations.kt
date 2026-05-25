@@ -29,19 +29,19 @@ class MenuGraphMutations(
     }
 
     @DgsMutation
-    fun eightySixItem(@InputArgument itemId: String): Map<String, Any> {
+    fun eightySixItem(@InputArgument itemId: String): com.crust.menu.domain.MenuItem {
         return menuAvailabilityService.eightySixItem(UUID.fromString(itemId))
     }
 
     @DgsMutation
-    fun unEightySixItem(@InputArgument itemId: String, @InputArgument quantity: Int?): Map<String, Any> {
+    fun unEightySixItem(@InputArgument itemId: String, @InputArgument quantity: Int?): com.crust.menu.domain.MenuItem {
         return menuAvailabilityService.unEightySixItem(UUID.fromString(itemId), quantity)
     }
 
     // ─── Order Mutations ─────────────────────────────────────────────────────
 
     @DgsMutation
-    fun createOrder(@InputArgument input: Map<String, Any>): Map<String, Any> {
+    fun createOrder(@InputArgument input: Map<String, Any>): com.crust.menu.domain.RestaurantOrder {
         val items = (input["items"] as List<Map<String, Any>>).map { item ->
             val modifiers = (item["modifiers"] as? List<Map<String, Any>>)?.map { m ->
                 ModifierSelectionInput(
@@ -72,40 +72,35 @@ class MenuGraphMutations(
             items = items
         )
 
-        val order = orderService.createOrder(createInput)
-        return orderToMap(order)
+        return orderService.createOrder(createInput)
     }
 
     @DgsMutation
-    fun updateOrderStatus(@InputArgument orderId: String, @InputArgument status: String): Map<String, Any> {
+    fun updateOrderStatus(@InputArgument orderId: String, @InputArgument status: String): com.crust.menu.domain.RestaurantOrder {
         val order = orderService.updateOrderStatus(UUID.fromString(orderId), status)
-        return orderToMap(order)
+        return order
     }
 
     @DgsMutation
-    fun cancelOrder(@InputArgument orderId: String): Map<String, Any> {
-        val order = orderService.cancelOrder(UUID.fromString(orderId))
-        return orderToMap(order)
+    fun cancelOrder(@InputArgument orderId: String): com.crust.menu.domain.RestaurantOrder {
+        return orderService.cancelOrder(UUID.fromString(orderId))
     }
 
     // ─── Kitchen Mutations ───────────────────────────────────────────────────
 
     @DgsMutation
-    fun acknowledgeTicket(@InputArgument ticketId: String): Map<String, Any> {
-        val t = kitchenDisplayService.acknowledgeTicket(UUID.fromString(ticketId))
-        return ticketToMap(t)
+    fun acknowledgeTicket(@InputArgument ticketId: String): com.crust.menu.domain.KitchenTicket {
+        return kitchenDisplayService.acknowledgeTicket(UUID.fromString(ticketId))
     }
 
     @DgsMutation
-    fun markTicketReady(@InputArgument ticketId: String): Map<String, Any> {
-        val t = kitchenDisplayService.markReady(UUID.fromString(ticketId))
-        return ticketToMap(t)
+    fun markTicketReady(@InputArgument ticketId: String): com.crust.menu.domain.KitchenTicket {
+        return kitchenDisplayService.markReady(UUID.fromString(ticketId))
     }
 
     @DgsMutation
-    fun bumpTicket(@InputArgument ticketId: String): Map<String, Any> {
-        val t = kitchenDisplayService.bumpTicket(UUID.fromString(ticketId))
-        return ticketToMap(t)
+    fun bumpTicket(@InputArgument ticketId: String): com.crust.menu.domain.KitchenTicket {
+        return kitchenDisplayService.bumpTicket(UUID.fromString(ticketId))
     }
 
     // ─── Payment Mutations ───────────────────────────────────────────────────

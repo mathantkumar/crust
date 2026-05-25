@@ -6,16 +6,20 @@ import com.crust.menu.repository.KitchenStationRepository
 import com.crust.menu.repository.KitchenTicketRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 import java.util.UUID
 
+data class KitchenOrderReadyEvent(val orderId: UUID)
+
 @Service
 class KitchenDisplayService(
     private val ticketRepository: KitchenTicketRepository,
     private val stationRepository: KitchenStationRepository,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
     private val log = LoggerFactory.getLogger(KitchenDisplayService::class.java)
 
@@ -78,7 +82,9 @@ class KitchenDisplayService(
         ticket.status = "READY"
         ticket.completedAt = LocalDateTime.now()
         log.info("Ticket $ticketId marked READY at station ${ticket.stationName}")
-        return ticketRepository.save(ticket)
+        val saved = ticketRepository.save(ticket)
+        checkAllTicketsReadyForOrder(ticket.orderId)
+        return saved
     }
 
     @Transactional
@@ -89,7 +95,17 @@ class KitchenDisplayService(
         ticket.status = "BUMPED"
         if (ticket.completedAt == null) ticket.completedAt = LocalDateTime.now()
         log.info("Ticket $ticketId bumped at station ${ticket.stationName}")
-        return ticketRepository.save(ticket)
+        val saved = ticketRepository.save(ticket)
+        checkAllTicketsReadyForOrder(ticket.orderId)
+        return saved
+    }
+
+    private fun checkAllTicketsReadyForOrder(orderId: UUID) {
+        val allTickets = ticketRepository.findByOrderId(orderId)
+        val allReady = allTickets.all { it.status == "READY" || it.status == "BUMPED" }
+        if (allReady && allTickets.isNotEmpty()) {
+            eventPublisher.publishEvent(KitchenOrderReadyEvent(orderId))
+        }
     }
 
     fun getTicketsByStation(stationId: UUID): List<KitchenTicket> =

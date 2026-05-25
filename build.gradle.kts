@@ -34,8 +34,8 @@ dependencies {
 	implementation("dev.langchain4j:langchain4j-spring-boot-starter:0.35.0")
 	implementation("dev.langchain4j:langchain4j-google-ai-gemini:0.35.0")
 	implementation("org.springframework.retry:spring-retry:2.0.11")
-	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-web-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-test")
+	testImplementation("com.h2database:h2")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

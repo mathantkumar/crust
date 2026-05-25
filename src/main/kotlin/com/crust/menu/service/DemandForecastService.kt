@@ -54,8 +54,8 @@ class DemandForecastService(
     @Scheduled(fixedDelay = 6 * 60 * 60 * 1000, initialDelay = 30_000)
     @Transactional
     fun generateForecasts() {
-        val itemIds = salesHourlyRepository.findDistinctMenuItemIds()
-        if (itemIds.isEmpty()) {
+        val tenantItems = salesHourlyRepository.findDistinctTenantItems()
+        if (tenantItems.isEmpty()) {
             log.info("Forecast: no sales history yet, skipping")
             return
         }
@@ -67,7 +67,11 @@ class DemandForecastService(
         val today = LocalDate.now()
         var forecastCount = 0
 
-        for (menuItemId in itemIds) {
+        for (row in tenantItems) {
+            val restaurantId = row[0] as UUID
+            val locationId = row[1] as UUID
+            val menuItemId = row[2] as UUID
+
             val itemName = itemNameMap[menuItemId] ?: "Unknown"
             val currentPrice = priceMap[menuItemId] ?: BigDecimal.ZERO
 
@@ -78,17 +82,17 @@ class DemandForecastService(
 
                 // Get training data: same day-of-week, last N weeks
                 val since = forecastDate.minusWeeks(LOOKBACK_WEEKS.toLong() + 1)
-                val trainingData = salesHourlyRepository.findTrainingData(menuItemId, dayOfWeek, since)
+                val trainingData = salesHourlyRepository.findTrainingData(restaurantId, locationId, menuItemId, dayOfWeek, since)
 
                 for (hour in OPERATING_HOURS) {
                     val prediction = predictForHour(trainingData, hour, currentPrice)
-                    upsertForecast(menuItemId, itemName, forecastDate, hour, dayOfWeek, prediction)
+                    upsertForecast(restaurantId, locationId, menuItemId, itemName, forecastDate, hour, dayOfWeek, prediction)
                     forecastCount++
                 }
             }
         }
 
-        log.info("Forecast: generated $forecastCount predictions for ${itemIds.size} items using model $MODEL_VERSION")
+        log.info("Forecast: generated $forecastCount predictions for ${tenantItems.size} tenant-items using model $MODEL_VERSION")
     }
 
     // ─── Prediction Engine ───────────────────────────────────────────────────
@@ -170,6 +174,8 @@ class DemandForecastService(
     // ─── Persistence ─────────────────────────────────────────────────────────
 
     private fun upsertForecast(
+        restaurantId: UUID,
+        locationId: UUID,
         menuItemId: UUID,
         itemName: String,
         forecastDate: LocalDate,
@@ -177,7 +183,7 @@ class DemandForecastService(
         dayOfWeek: Int,
         prediction: HourlyPrediction
     ) {
-        val existing = forecastRepository.findExisting(menuItemId, forecastDate, hour)
+        val existing = forecastRepository.findExisting(restaurantId, locationId, menuItemId, forecastDate, hour)
 
         if (existing.isPresent) {
             val row = existing.get()
@@ -188,6 +194,8 @@ class DemandForecastService(
         } else {
             forecastRepository.save(
                 ItemDemandForecast(
+                    restaurantId = restaurantId,
+                    locationId = locationId,
                     menuItemId = menuItemId,
                     itemName = itemName,
                     forecastDate = forecastDate,

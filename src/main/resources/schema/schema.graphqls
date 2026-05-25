@@ -195,6 +195,20 @@ type ItemDemandForecastData {
     generatedAt: String!
 }
 
+type Predictive86AlertData {
+    id: ID!
+    menuItemId: ID!
+    itemName: String!
+    triggerOrderId: ID!
+    currentStock: Int!
+    predictedDemand: Float!
+    riskScore: Float!
+    alertMessage: String!
+    status: String!
+    createdAt: String!
+    resolvedAt: String
+}
+
 # ─── Queries ──────────────────────────────────────────────────────────────────
 
 type Query {
@@ -224,6 +238,7 @@ type Query {
     # Forecasting
     demandForecast(dateFrom: String!, dateTo: String!): [ItemDemandForecastData!]!
     itemForecast(menuItemId: ID!): [ItemDemandForecastData!]!
+    predictive86Alerts(status: String): [Predictive86AlertData!]!
 }
 
 # ─── Mutations ────────────────────────────────────────────────────────────────

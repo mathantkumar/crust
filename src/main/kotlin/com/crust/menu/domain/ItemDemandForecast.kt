@@ -17,6 +17,12 @@ class ItemDemandForecast(
     @Id
     val id: UUID = UUID.randomUUID(),
 
+    @Column(name = "restaurant_id", nullable = false)
+    val restaurantId: UUID,
+
+    @Column(name = "location_id", nullable = false)
+    val locationId: UUID,
+
     @Column(name = "menu_item_id", nullable = false)
     val menuItemId: UUID,
 

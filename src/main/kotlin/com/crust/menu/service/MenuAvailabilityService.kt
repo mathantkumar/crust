@@ -18,36 +18,26 @@ class MenuAvailabilityService(
      * In restaurant terminology, "86'd" means the item is out of stock.
      */
     @Transactional
-    fun eightySixItem(itemId: UUID): Map<String, Any> {
+    fun eightySixItem(itemId: UUID): MenuItem {
         val item = findMenuItemById(itemId)
         item.available = false
         item.quantityRemaining = 0
         log.info("86'd menu item '${item.name}' (${item.id})")
 
-        return mapOf(
-            "id" to item.id.toString(),
-            "name" to item.name,
-            "available" to false,
-            "quantityRemaining" to 0
-        )
+        return item
     }
 
     /**
      * Un-86 an item — restores availability with optional quantity.
      */
     @Transactional
-    fun unEightySixItem(itemId: UUID, quantity: Int?): Map<String, Any> {
+    fun unEightySixItem(itemId: UUID, quantity: Int?): MenuItem {
         val item = findMenuItemById(itemId)
         item.available = true
         item.quantityRemaining = quantity
         log.info("Un-86'd menu item '${item.name}' (${item.id}), quantity: ${quantity ?: "unlimited"}")
 
-        return mapOf(
-            "id" to item.id.toString(),
-            "name" to item.name,
-            "available" to true,
-            "quantityRemaining" to (quantity ?: -1)
-        )
+        return item
     }
 
     private fun findMenuItemById(itemId: UUID): MenuItem {

@@ -46,6 +46,7 @@ interface OrderRepository : JpaRepository<RestaurantOrder, UUID> {
     @Query("SELECT o FROM RestaurantOrder o WHERE o.createdAt >= :since ORDER BY o.createdAt DESC")
     fun findOrdersSince(since: LocalDateTime): List<RestaurantOrder>
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT o FROM RestaurantOrder o WHERE o.status = 'COMPLETED' AND o.aggregated = false ORDER BY o.createdAt ASC")
     fun findCompletedUnaggregated(): List<RestaurantOrder>
 }
@@ -85,20 +86,24 @@ interface ItemSalesHourlyRepository : JpaRepository<ItemSalesHourly, UUID> {
     /** Training data: historical hourly sales for a specific item on a specific day-of-week */
     @Query("""
         SELECT s FROM ItemSalesHourly s
-        WHERE s.menuItemId = :menuItemId
+        WHERE s.restaurantId = :restaurantId
+          AND s.locationId = :locationId
+          AND s.menuItemId = :menuItemId
           AND s.dayOfWeek = :dayOfWeek
           AND s.salesDate >= :since
         ORDER BY s.salesDate DESC, s.hourOfDay ASC
     """)
     fun findTrainingData(
+        restaurantId: UUID,
+        locationId: UUID,
         menuItemId: UUID,
         dayOfWeek: Int,
         since: java.time.LocalDate
     ): List<ItemSalesHourly>
 
-    /** All distinct menu item IDs that have sales history */
-    @Query("SELECT DISTINCT s.menuItemId FROM ItemSalesHourly s")
-    fun findDistinctMenuItemIds(): List<UUID>
+    /** All distinct tenant/item combinations that have sales history */
+    @Query("SELECT DISTINCT s.restaurantId, s.locationId, s.menuItemId FROM ItemSalesHourly s")
+    fun findDistinctTenantItems(): List<Array<Any>>
 }
 
 // ─── Demand Forecasting ──────────────────────────────────────────────────────
@@ -107,14 +112,19 @@ interface ItemDemandForecastRepository : JpaRepository<ItemDemandForecast, UUID>
     fun findByForecastDateAndMenuItemId(forecastDate: java.time.LocalDate, menuItemId: UUID): List<ItemDemandForecast>
     fun findByForecastDateBetween(from: java.time.LocalDate, to: java.time.LocalDate): List<ItemDemandForecast>
     fun findByMenuItemId(menuItemId: UUID): List<ItemDemandForecast>
+    fun findByMenuItemIdOrderByForecastDateDescHourOfDayDesc(menuItemId: UUID): List<ItemDemandForecast>
 
     @Query("""
         SELECT f FROM ItemDemandForecast f
-        WHERE f.menuItemId = :menuItemId
+        WHERE f.restaurantId = :restaurantId
+          AND f.locationId = :locationId
+          AND f.menuItemId = :menuItemId
           AND f.forecastDate = :forecastDate
           AND f.hourOfDay = :hourOfDay
     """)
     fun findExisting(
+        restaurantId: UUID,
+        locationId: UUID,
         menuItemId: UUID,
         forecastDate: java.time.LocalDate,
         hourOfDay: Int
@@ -151,4 +161,10 @@ interface RestaurantRepository : JpaRepository<Restaurant, UUID>
 interface LocationRepository : JpaRepository<Location, UUID> {
     fun findByRestaurantId(restaurantId: UUID): List<Location>
     fun findByIsActiveTrue(): List<Location>
+}
+
+// ─── Machine Learning & Intelligent Alerts ───────────────────────────────────
+
+interface Predictive86AlertRepository : JpaRepository<Predictive86Alert, UUID> {
+    fun findByStatusOrderByCreatedAtDesc(status: String): List<Predictive86Alert>
 }

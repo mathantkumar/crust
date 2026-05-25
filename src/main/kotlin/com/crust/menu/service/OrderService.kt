@@ -6,6 +6,7 @@ import com.crust.menu.repository.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.slf4j.LoggerFactory
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -39,6 +40,8 @@ data class CreateOrderItemInput(
     val specialInstructions: String? = null
 )
 
+data class OrderCreatedEvent(val orderId: UUID)
+
 @Service
 class OrderService(
     private val orderRepository: OrderRepository,
@@ -46,13 +49,17 @@ class OrderService(
     private val menuVersionRepository: MenuVersionRepository,
     private val kitchenDisplayService: KitchenDisplayService,
     private val outboxEventRepository: OutboxEventRepository,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val eventPublisher: ApplicationEventPublisher
 ) {
     private val log = LoggerFactory.getLogger(OrderService::class.java)
     private val TAX_RATE = BigDecimal("0.08875") // NYC tax rate as example
 
     @Transactional
     fun createOrder(input: CreateOrderInput): RestaurantOrder {
+        requireNotNull(input.restaurantId) { "restaurantId is required for proper tenant analytics" }
+        requireNotNull(input.locationId) { "locationId is required for proper tenant analytics" }
+
         // Idempotency check — return existing order if key already used
         if (input.idempotencyKey != null) {
             val existing = orderRepository.findByIdempotencyKey(input.idempotencyKey)
@@ -152,6 +159,9 @@ class OrderService(
         )
         outboxEventRepository.save(event)
 
+        // Trigger ML Intelligent 86 Pipeline
+        eventPublisher.publishEvent(OrderCreatedEvent(saved.id))
+
         return saved
     }
 
@@ -225,5 +235,23 @@ class OrderService(
         }
 
         return emptyList()
+    }
+
+    /**
+     * Listens for the Kitchen Display System marking all tickets ready,
+     * and automatically transitions the parent order to READY so it can be paid/completed.
+     */
+    @org.springframework.context.event.EventListener
+    @Transactional
+    fun onKitchenOrderReady(event: KitchenOrderReadyEvent) {
+        log.info("Received KitchenOrderReadyEvent for order ${event.orderId}")
+        val order = orderRepository.findById(event.orderId).orElse(null) ?: return
+        
+        // Only advance to READY if it hasn't already been advanced or cancelled
+        if (order.status == OrderStatus.IN_PROGRESS.name || order.status == OrderStatus.SENT_TO_KITCHEN.name) {
+            order.status = OrderStatus.READY.name
+            orderRepository.save(order)
+            log.info("Automatically advanced order ${order.id} to READY state")
+        }
     }
 }

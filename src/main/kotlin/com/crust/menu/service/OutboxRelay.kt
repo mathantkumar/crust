@@ -22,21 +22,27 @@ class OutboxRelay(
 
         for (event in pendingEvents) {
             try {
-                // Non-blocking send with async callback instead of blocking .get()
-                kafkaTemplate.send("menu.version.published", event.aggregateId, event.payload)
+                val topic = when (event.aggregateType) {
+                    "MenuVersion" -> "menu.version.published"
+                    "Order" -> "order.created"
+                    else -> "system.events"
+                }
+
+                // Non-blocking send, but database state only updates upon broker confirmation
+                kafkaTemplate.send(topic, event.aggregateId, event.payload)
                     .whenComplete { result, ex ->
                         if (ex != null) {
                             log.error("Failed to send outbox event ${event.id} to Kafka: ${ex.message}", ex)
+                            event.status = "FAILED"
+                            outboxEventRepository.save(event)
                         } else {
-                            log.info("Outbox event ${event.id} delivered to partition ${result.recordMetadata.partition()} at offset ${result.recordMetadata.offset()}")
+                            log.info("Outbox event ${event.id} delivered to $topic (partition ${result.recordMetadata.partition()})")
+                            event.status = "PROCESSED"
+                            outboxEventRepository.save(event)
                         }
                     }
-
-                // Mark as PROCESSED optimistically — if Kafka fails, the DLT/retry handles it
-                event.status = "PROCESSED"
-                outboxEventRepository.save(event)
             } catch (e: Exception) {
-                log.error("Failed to process outbox event ${event.id}: ${e.message}", e)
+                log.error("Failed to enqueue outbox event ${event.id}: ${e.message}", e)
                 event.status = "FAILED"
                 outboxEventRepository.save(event)
             }

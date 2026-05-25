@@ -11,8 +11,8 @@ class RestaurantOrder(
     @Id
     val id: UUID = UUID.randomUUID(),
 
-    @Column(name = "order_number")
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "order_number", insertable = false, updatable = false)
+    @org.hibernate.annotations.Generated
     var orderNumber: Long? = null,
 
     @Column(name = "channel", nullable = false)
