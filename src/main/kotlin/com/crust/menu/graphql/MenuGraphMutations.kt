@@ -5,7 +5,6 @@ import com.netflix.graphql.dgs.DgsComponent
 import com.netflix.graphql.dgs.DgsMutation
 import com.netflix.graphql.dgs.InputArgument
 import java.math.BigDecimal
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @DgsComponent
@@ -132,54 +131,6 @@ class MenuGraphMutations(
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    private fun orderToMap(o: com.crust.menu.domain.RestaurantOrder): Map<String, Any> = mapOf(
-        "id" to o.id.toString(), "orderNumber" to (o.orderNumber ?: 0),
-        "channel" to o.channel, "status" to o.status,
-        "restaurantId" to (o.restaurantId?.toString() ?: ""),
-        "locationId" to (o.locationId?.toString() ?: ""),
-        "tableNumber" to (o.tableNumber ?: ""), "serverName" to (o.serverName ?: ""),
-        "guestCount" to (o.guestCount ?: 0),
-        "subtotal" to o.subtotal, "tax" to o.tax, "tip" to o.tip, "total" to o.total,
-        "notes" to (o.notes ?: ""),
-        "createdAt" to o.createdAt.toString(), "updatedAt" to o.updatedAt.toString(),
-        "items" to o.items.map { i ->
-            mapOf(
-                "id" to i.id.toString(), "menuItemId" to i.menuItemId.toString(),
-                "menuItemName" to i.menuItemName, "quantity" to i.quantity,
-                "unitPrice" to i.unitPrice, "lineTotal" to i.lineTotal,
-                "modifierSelections" to (i.modifierSelections ?: ""),
-                "specialInstructions" to (i.specialInstructions ?: ""),
-                "status" to i.status,
-                "categoryId" to (i.categoryId?.toString() ?: ""),
-                "categoryName" to (i.categoryName ?: ""),
-                "menuVersionId" to (i.menuVersionId?.toString() ?: ""),
-                "createdAt" to i.createdAt.toString(),
-                "completedAt" to (i.completedAt?.toString() ?: ""),
-                "modifiers" to i.modifiers.map { m ->
-                    mapOf(
-                        "id" to m.id.toString(),
-                        "modifierId" to (m.modifierId?.toString() ?: ""),
-                        "modifierName" to m.modifierName,
-                        "priceImpact" to m.priceImpact
-                    )
-                }
-            )
-        }
-    )
-
-    private fun ticketToMap(t: com.crust.menu.domain.KitchenTicket): Map<String, Any> {
-        val elapsed = ChronoUnit.SECONDS.between(t.createdAt, java.time.LocalDateTime.now())
-        return mapOf(
-            "id" to t.id.toString(), "orderId" to t.orderId.toString(),
-            "orderNumber" to (t.orderNumber ?: 0), "stationId" to t.stationId.toString(),
-            "stationName" to (t.stationName ?: ""), "status" to t.status,
-            "items" to (t.items ?: "[]"), "createdAt" to t.createdAt.toString(),
-            "acknowledgedAt" to (t.acknowledgedAt?.toString() ?: ""),
-            "completedAt" to (t.completedAt?.toString() ?: ""),
-            "elapsedSeconds" to elapsed
-        )
-    }
 
     private fun paymentToMap(p: com.crust.menu.domain.Payment): Map<String, Any> = mapOf(
         "id" to p.id.toString(), "orderId" to p.orderId.toString(),
